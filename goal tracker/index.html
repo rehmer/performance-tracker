@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Performance Goal Tracker</title>
+    
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+    
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    
+    <!-- Chart.js - We will load from CDN, service worker caches it for offline -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- Main Content Area -->
+    <main id="app-container">
+        
+        <!-- View: Chart -->
+        <section id="view-chart" class="view active">
+            <header>
+                <h1>Performance Goals</h1>
+            </header>
+            <div class="content">
+                <div class="chart-container">
+                    <canvas id="mainChart"></canvas>
+                </div>
+                <div id="chart-legend" class="legend-container"></div>
+            </div>
+            <!-- FAB to add result -->
+            <button id="fab-add-result" class="fab" aria-label="Add Result">+</button>
+        </section>
+
+        <!-- View: History -->
+        <section id="view-history" class="view">
+            <header>
+                <h1>History</h1>
+            </header>
+            <div class="content" id="history-list">
+                <!-- History items injected here -->
+            </div>
+        </section>
+
+        <!-- View: Goals -->
+        <section id="view-goals" class="view">
+            <header>
+                <h1>Goals</h1>
+                <button id="btn-add-goal" class="text-button">Add</button>
+            </header>
+            <div class="content" id="goals-list">
+                <!-- Goal items injected here -->
+            </div>
+        </section>
+
+        <!-- View: Settings -->
+        <section id="view-settings" class="view">
+            <header>
+                <h1>Settings</h1>
+            </header>
+            <div class="content">
+                <div class="card">
+                    <h3>Data Management</h3>
+                    <p>All data is stored locally on this device.</p>
+                    <div class="settings-actions">
+                        <button id="btn-export" class="primary-btn">Export Backup</button>
+                        <input type="file" id="file-import" accept=".json" style="display:none">
+                        <button id="btn-import" class="secondary-btn">Import Backup</button>
+                    </div>
+                </div>
+                <div class="card danger-zone">
+                    <h3>Danger Zone</h3>
+                    <p>This will permanently delete all goals and history.</p>
+                    <button id="btn-clear-data" class="danger-btn">Clear All Data</button>
+                </div>
+                <div class="card about-zone">
+                    <h3>About</h3>
+                    <p>Performance Goal Tracker<br>A simple, private, offline-first PWA.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <a href="#" class="nav-item active" data-target="view-chart">
+            <div class="nav-icon">📈</div>
+            <span>Chart</span>
+        </a>
+        <a href="#" class="nav-item" data-target="view-history">
+            <div class="nav-icon">🕒</div>
+            <span>History</span>
+        </a>
+        <a href="#" class="nav-item" data-target="view-goals">
+            <div class="nav-icon">🎯</div>
+            <span>Goals</span>
+        </a>
+        <a href="#" class="nav-item" data-target="view-settings">
+            <div class="nav-icon">⚙️</div>
+            <span>Settings</span>
+        </a>
+    </nav>
+
+    <!-- Modals -->
+    
+    <!-- Modal: Add/Edit Result -->
+    <div id="modal-result" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-result-title">Add Result</h2>
+            <form id="form-result">
+                <input type="hidden" id="result-id">
+                <div class="form-group">
+                    <label for="result-goal">Goal</label>
+                    <select id="result-goal" required></select>
+                </div>
+                <div class="form-group">
+                    <label id="result-value-label" for="result-value">Result</label>
+                    <input type="text" id="result-value" required placeholder="e.g. 30:15 or 100">
+                </div>
+                <div class="form-group">
+                    <label for="result-date">Date</label>
+                    <input type="date" id="result-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="result-note">Note (optional)</label>
+                    <input type="text" id="result-note" placeholder="Short note">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" data-modal="modal-result">Cancel</button>
+                    <button type="submit" class="btn-save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Goal -->
+    <div id="modal-goal" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-goal-title">Add Goal</h2>
+            <form id="form-goal">
+                <input type="hidden" id="goal-id">
+                <div class="form-group">
+                    <label for="goal-name">Name</label>
+                    <input type="text" id="goal-name" required placeholder="e.g. 5K Run">
+                </div>
+                <div class="form-group">
+                    <label for="goal-unit">Unit</label>
+                    <input type="text" id="goal-unit" required placeholder="e.g. Time, Reps, lbs">
+                </div>
+                <div class="form-group">
+                    <label for="goal-type">Direction</label>
+                    <select id="goal-type" required>
+                        <option value="higher">Higher is better</option>
+                        <option value="lower">Lower is better</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="goal-baseline">Baseline (0%)</label>
+                    <input type="text" id="goal-baseline" required placeholder="Starting value">
+                </div>
+                <div class="form-group">
+                    <label for="goal-target">Target (100%)</label>
+                    <input type="text" id="goal-target" required placeholder="Goal value">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" data-modal="modal-goal">Cancel</button>
+                    <button type="submit" class="btn-save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="db.js"></script>
+    <script src="utils.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => console.log('ServiceWorker registered:', reg.scope))
+                    .catch(err => console.log('ServiceWorker registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>
